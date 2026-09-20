@@ -148,9 +148,6 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
   'sdk-minimal': {
     bundles: ['@deepseek-ai/dsh-sdk-minimal'],
   },
-  tui: {
-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-tui-app'],
-  },
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */

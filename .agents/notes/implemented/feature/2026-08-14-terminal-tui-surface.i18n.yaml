@@ -1,6 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-14-terminal-tui-surface.md
-2026-08-14-terminal-tui-surface.md: a3e79cc0051b422f7d562b72efaf315cb3a31bff
-2026-08-14-terminal-tui-surface.zh.md: b36c7ab34e6f096a3b8942df9fa511456ca8d40b
