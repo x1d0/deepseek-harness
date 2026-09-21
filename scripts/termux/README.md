@@ -4,15 +4,17 @@
 
 ## `dsh` — 启动器
 
-目标位置：`/data/data/com.termux/files/usr/bin/dsh`（需 `chmod +x`）。内容：
+目标位置：`$PREFIX/bin/dsh`（Termux 的 `PREFIX`，通常是 `/data/data/com.termux/files/usr`；需 `chmod +x`）。内容：
 
 ```bash
 export CI=true
-DSH_REPO=/data/data/com.termux/files/home/build/deepseek-harness
+DSH_REPO="${DSH_REPO:-$HOME/build/deepseek-harness}"
 exec node --expose-internals \
   --import "$DSH_REPO/node_modules/tsx/dist/esm/index.mjs" \
   "$DSH_REPO/apps/cli/src/bin.ts" "$@"
 ```
+
+`DSH_REPO` 默认取 `$HOME/build/deepseek-harness`，checkout 在别处时用环境变量覆盖即可。
 
 `--expose-internals` 是必需项：`node-addon-require-builtin` 没有 android-arm64 预编译产物，profile 解析必须经
 `packages/boot/app-boot/src/profile-resolution/resolver.ts` 的 `require` 分支取 Node internal。

@@ -5,7 +5,8 @@
 #   (node-addon-require-builtin has no android prebuilt)
 # Runs from the caller's cwd so session project context is preserved.
 export CI=true
-DSH_REPO=/data/data/com.termux/files/home/build/deepseek-harness
+# The checkout this launcher runs from; override when yours lives elsewhere.
+DSH_REPO="${DSH_REPO:-$HOME/build/deepseek-harness}"
 exec node --expose-internals \
   --import "$DSH_REPO/node_modules/tsx/dist/esm/index.mjs" \
   "$DSH_REPO/apps/cli/src/bin.ts" "$@"
