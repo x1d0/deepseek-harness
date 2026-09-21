@@ -14,7 +14,7 @@ import {
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
 import { readdirSync, type Dirent } from 'node:fs'
-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
+import { open, mkdir, readdir, realpath, link, rename, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
@@ -1301,6 +1301,18 @@ class JsonlSessionPersistence extends SessionPersistence {
     try {
       await link(tmp, finalPath)
       linked = true
+    } catch (error) {
+      // Android denies hard links even inside app-private storage (SELinux),
+      // so on Termux fall back to rename(). The rejectExistingLog check above
+      // still guards same-id collisions; the concurrent-materialize race that
+      // link()+EEXIST closes stays closed on platforms that allow hard links.
+      if (process.platform === 'android' && error instanceof Error && 'code' in error
+        && (error.code === 'EACCES' || error.code === 'EPERM')) {
+        await rename(tmp, finalPath)
+        linked = true
+      } else {
+        throw error
+      }
     } finally {
       // Remove an unpublished temp on failure. After publication, defer cleanup
       // until the directory entry is durable so cleanup cannot reject a live log.

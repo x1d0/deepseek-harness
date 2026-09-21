@@ -730,20 +730,32 @@ class ResolutionRouter {
   }
 }
 
-function internalModules(): InternalModules {
+function requireBuiltinModule(moduleId: string): unknown {
   const require = createRequire(import.meta.url)
+  // Termux/Android: node-addon-require-builtin ships no android-arm64 prebuilt.
+  // With --expose-internals (the Termux launcher passes it) plain require reaches
+  // the same internal modules, so prefer it and only fall back to the addon.
+  if (process.execArgv.includes('--expose-internals')) {
+    try {
+      return require(moduleId)
+    } catch {}
+  }
   const addon = require('node-addon-require-builtin') as { requireBuiltin(moduleId: string): unknown }
-  const esmModule = addon.requireBuiltin('internal/modules/esm/loader') as {
+  return addon.requireBuiltin(moduleId)
+}
+
+function internalModules(): InternalModules {
+  const esmModule = requireBuiltinModule('internal/modules/esm/loader') as {
     getOrInitializeCascadedLoader(): ModuleLoaderV1 | ModuleLoaderV2
   }
-  const cjsModule = addon.requireBuiltin('internal/modules/cjs/loader') as { Module: CommonJsModule }
-  const cjsHelpers = addon.requireBuiltin('internal/modules/helpers') as {
+  const cjsModule = requireBuiltinModule('internal/modules/cjs/loader') as { Module: CommonJsModule }
+  const cjsHelpers = requireBuiltinModule('internal/modules/helpers') as {
     getCjsConditions(): ReadonlySet<string>
   }
-  const esmUtils = addon.requireBuiltin('internal/modules/esm/utils') as {
+  const esmUtils = requireBuiltinModule('internal/modules/esm/utils') as {
     getDefaultConditions(): readonly string[]
   }
-  const esmResolve = addon.requireBuiltin('internal/modules/esm/resolve') as {
+  const esmResolve = requireBuiltinModule('internal/modules/esm/resolve') as {
     defaultResolve(
       specifier: string,
       context: { parentURL?: string; conditions?: readonly string[] },

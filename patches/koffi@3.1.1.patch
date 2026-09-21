@@ -1,0 +1,19 @@
+diff --git a/lib/native/base/base.cc b/lib/native/base/base.cc
+index a157161b44c2838ca26b72728cb089a32b688e3d..3cae62a4023c421e143739f72ee8e26fe8ddf87c 100644
+--- a/lib/native/base/base.cc
++++ b/lib/native/base/base.cc
+@@ -2964,7 +2964,14 @@ static StatResult StatAt(int fd, bool fd_is_directory, const char *filename, uns
+     }
+ 
+     struct statx sxb;
++#if defined(__ANDROID__)
++    // Bionic exposes struct statx but only declares the statx() function
++    // for __ANDROID_API__ >= 30; Termux targets a lower API level, so call
++    // the syscall directly.
++    if (syscall(SYS_statx, fd, pathname, stat_flags, stat_mask, &sxb) < 0) {
++#else
+     if (statx(fd, pathname, stat_flags, stat_mask, &sxb) < 0) {
++#endif
+         switch (errno) {
+             case ENOENT: {
+                 if (!(flags & (int)StatFlag::SilentMissing)) {

@@ -1,6 +1,8 @@
 /** Lazy POSIX flock entry; importing it does not load a native addon. */
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { getSystemErrorName } from 'node:util'
 
 interface FlockBinding {
@@ -12,6 +14,27 @@ let binding: FlockBinding | undefined
 function loadBinding(): FlockBinding {
   if (binding) return binding
   const { platform, arch } = process
+  const require = createRequire(import.meta.url)
+  if (platform === 'android') {
+    // Termux: no published android-arm64 prebuild. The harness checkout
+    // carries a locally compiled bionic binding; walk up from this file
+    // until the repo root's native/system/prebuilds dir shows up.
+    let dir = dirname(fileURLToPath(import.meta.url))
+    for (let i = 0; i < 12; i += 1) {
+      const candidate = join(dir, 'native/system/prebuilds/android-arm64/system.node')
+      if (existsSync(candidate)) {
+        binding = require(candidate) as FlockBinding
+        return binding
+      }
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+    throw Object.assign(new Error('flock: android binding not found; build it with: clang -shared -fPIC native/system/packages/entry/src/flock.c -I$PREFIX/include/node -o native/system/prebuilds/android-arm64/system.node'), {
+      code: 'ERR_FLOCK_ANDROID_BINDING_MISSING',
+      syscall: 'flock',
+    })
+  }
   if (platform !== 'linux' && platform !== 'darwin') {
     throw Object.assign(new Error(`flock is not supported on ${platform}-${arch}`), {
       code: 'ERR_FLOCK_UNSUPPORTED_PLATFORM',
@@ -25,7 +48,6 @@ function loadBinding(): FlockBinding {
     const report = process.report.getReport() as { header: { glibcVersionRuntime?: string } }
     filename = join(report.header.glibcVersionRuntime ? 'glibc' : 'musl', filename)
   }
-  const require = createRequire(import.meta.url)
   const manifest = require.resolve(`@deepseek-ai/node-addon-system-${platform}-${arch}/package.json`)
   binding = require(join(dirname(manifest), 'bin', filename)) as FlockBinding
   return binding

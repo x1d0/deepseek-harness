@@ -2,7 +2,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, createReadStream } from 'node:fs'
-import { chmod, link, mkdir, open, readFile, unlink } from 'node:fs/promises'
+import { chmod, link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
 import { dirname, join, parse, resolve } from 'node:path'
 import {
   AttachmentError,
@@ -282,10 +282,18 @@ export async function publishImmutableAlias(
     try {
       await link(source, target)
     } catch (error) {
-      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
-      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
-      if (await digestFile(target) !== sha256) {
-        throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
+      // Android denies hard links even inside app-private storage (SELinux),
+      // so on Termux fall back to rename(). Content-addressed targets make an
+      // overwrite lossless. The chmod/sync durability steps below still run.
+      if (process.platform === 'android' && error instanceof Error && 'code' in error
+        && (error.code === 'EACCES' || error.code === 'EPERM')) {
+        await rename(source, target)
+      } else {
+        /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+        if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+        if (await digestFile(target) !== sha256) {
+          throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
+        }
       }
     }
     await chmod(target, 0o400)
@@ -355,18 +363,29 @@ async function publishStagedObject(
   const parent = dirname(target)
   try {
     await ensureDurableDirectory(parent, staged.boundary)
+    // Rename-on-Android consumes the staging name, so there is nothing to unlink.
+    let renamedOnAndroid = false
     try {
       await link(staged.path, target)
     } catch (error) {
-      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
-      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
-      if (await digestFile(target) !== staged.sha256) {
-        throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
+      // Android denies hard links even inside app-private storage (SELinux),
+      // so on Termux fall back to rename(). Content-addressed targets make an
+      // overwrite lossless.
+      if (process.platform === 'android' && error instanceof Error && 'code' in error
+        && (error.code === 'EACCES' || error.code === 'EPERM')) {
+        await rename(staged.path, target)
+        renamedOnAndroid = true
+      } else {
+        /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+        if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+        if (await digestFile(target) !== staged.sha256) {
+          throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
+        }
       }
     }
     // Windows shares the read-only attribute across hard links and refuses to
     // unlink either name once it is set, so discard the staging name first.
-    await unlink(staged.path)
+    if (!renamedOnAndroid) await unlink(staged.path)
     // The target remains the sole link for a new object; this also restores
     // read-only mode when the deduplication path observes an existing object.
     await chmod(target, 0o400)
