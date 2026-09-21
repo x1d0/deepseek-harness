@@ -1,0 +1,11 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# dsh launcher for Termux source build.
+# - CI=true: skip lefthook postinstall checks
+# - --expose-internals: cordis loader needs Node internal ESM loader
+#   (node-addon-require-builtin has no android prebuilt)
+# Runs from the caller's cwd so session project context is preserved.
+export CI=true
+DSH_REPO=/data/data/com.termux/files/home/build/deepseek-harness
+exec node --expose-internals \
+  --import "$DSH_REPO/node_modules/tsx/dist/esm/index.mjs" \
+  "$DSH_REPO/apps/cli/src/bin.ts" "$@"
