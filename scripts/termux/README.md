@@ -1,10 +1,14 @@
-# Termux 部署件
+# Termux deployment artifacts
 
-本目录承载在 Termux 上恢复 dsh 部署所需、但不在常规源码树里的产物。
+English | [中文](README.zh.md)
 
-## `dsh` — 启动器
+This directory carries what a Termux deployment of dsh needs to be restored but does not live in the
+ordinary source tree.
 
-目标位置：`$PREFIX/bin/dsh`（Termux 的 `PREFIX`，通常是 `/data/data/com.termux/files/usr`；需 `chmod +x`）。内容：
+## `dsh` — launcher
+
+Target location: `$PREFIX/bin/dsh` (Termux's `PREFIX`, usually `/data/data/com.termux/files/usr`;
+requires `chmod +x`). Contents:
 
 ```bash
 export CI=true
@@ -14,22 +18,24 @@ exec node --expose-internals \
   "$DSH_REPO/apps/cli/src/bin.ts" "$@"
 ```
 
-`DSH_REPO` 默认取 `$HOME/build/deepseek-harness`，checkout 在别处时用环境变量覆盖即可。
+`DSH_REPO` defaults to `$HOME/build/deepseek-harness`; when the checkout lives elsewhere, override it
+with the environment variable.
 
-`--expose-internals` 是必需项：`node-addon-require-builtin` 没有 android-arm64 预编译产物，profile 解析必须经
-`packages/boot/app-boot/src/profile-resolution/resolver.ts` 的 `require` 分支取 Node internal。
+`--expose-internals` is required: `node-addon-require-builtin` has no android-arm64 prebuilt, so
+profile resolution must reach the Node internal through the `require` branch of
+`packages/boot/app-boot/src/profile-resolution/resolver.ts`.
 
 ## `native/system/prebuilds/android-arm64/system.node`
 
-flock 的原生 binding（bionic 编译，11504 字节）。`native/system/.gitignore` 忽略 `prebuilds/`，本仓库以
-`git add -f` 显式纳管。重建：
+The flock native binding (bionic build, 11504 bytes). `native/system/.gitignore` ignores
+`prebuilds/`; this repository tracks the file explicitly with `git add -f`. To rebuild:
 
 ```bash
 clang -shared -fPIC native/system/packages/entry/src/flock.c \
   -I$PREFIX/include/node -o native/system/prebuilds/android-arm64/system.node
 ```
 
-## 未纳入仓库
+## Not tracked here
 
-`~/.dsh/profiles/{sdk,web,headless}`、`~/.dsh/settings.yaml`、`~/.dsh/storages`、`~/.config/xi/config.toml`、
-`~/.venvs/xi-probe` 都是本机状态，需单独备份。
+`~/.dsh/profiles/{sdk,web,headless}`, `~/.dsh/settings.yaml`, `~/.dsh/storages`,
+`~/.config/xi/config.toml` and `~/.venvs/xi-probe` are machine-local state and need a separate backup.
