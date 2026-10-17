@@ -17,6 +17,7 @@ patchedDependencies:
   '@yao-pkg/pkg@6.21.0': 75891fc22b277c145cafeab83e41baf4a70f5b8fe6dc0801c6a0b922d7ee88c7
   app-builder-lib@26.17.0: b70dc2a2a78ffabb80a4f14fafc7c103237f2b0a207e1f296fa1c1387ea29348
   exceljs@4.4.0: c1bf8ac8f319dab382f08e3a669b715e691d46c703ac5a4163eb383fbedd1d48
+  koffi@3.1.1: bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712
   node-pty@1.2.0-beta.15: 9d30053266d0f39d3debe894c675867f6782da6bcadbc94a693b3cfb9eff8ed0
 
 importers:
@@ -750,7 +751,7 @@ importers:
         version: 4.3.2
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
       pnpm:
         specifier: 11.28.5
         version: 11.28.5
@@ -816,7 +817,7 @@ importers:
         version: 0.1.5
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
     devDependencies:
       '@deepseek-ai/cordis-plugin-include':
         specifier: workspace:~
@@ -10041,7 +10042,7 @@ importers:
         version: 5.0.0
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -10542,7 +10543,7 @@ importers:
         version: link:../../util/native-command
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -11856,7 +11857,7 @@ importers:
         version: link:../../subprocess/win32-process
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
       yaml:
         specifier: ^2.4.2
         version: 2.9.0
@@ -12450,7 +12451,7 @@ importers:
         version: link:../../../vendor/schemastery
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
       p-limit:
         specifier: 7.3.3
         version: 7.3.3
@@ -14412,7 +14413,7 @@ importers:
         version: link:../win32-process
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
       node-pty:
         specifier: 1.2.0-beta.15
         version: 1.2.0-beta.15(patch_hash=9d30053266d0f39d3debe894c675867f6782da6bcadbc94a693b3cfb9eff8ed0)
@@ -14437,7 +14438,7 @@ importers:
         version: link:../../util/lazy-require
       koffi:
         specifier: 3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -24308,7 +24309,7 @@ snapshots:
     dependencies:
       fflate: 0.8.2
       fontkit: 2.0.4
-      koffi: 3.1.1
+      koffi: 3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712)
       saxes: 6.0.0
     optionalDependencies:
       '@deepseek-ai/libreoffice-kit-darwin-arm64': 0.1.5
@@ -28992,7 +28993,7 @@ snapshots:
 
   khroma@2.1.0: {}
 
-  koffi@3.1.1:
+  koffi@3.1.1(patch_hash=bc0c83ba004dd4e51b5b44b250dcdcf49a548f016709f05d1933961901714712):
     optionalDependencies:
       '@koromix/koffi-darwin-arm64': 3.1.1
       '@koromix/koffi-darwin-x64': 3.1.1
