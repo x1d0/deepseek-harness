@@ -133,6 +133,104 @@ export interface SubagentFinishedNotification {
   lastAssistantMessage?: ContentBlock[]
 }
 
+/** Identity and metadata for one session in the runtime's session corpus. */
+export interface SessionDescriptor {
+  /** Durable session id (accepted by `session/prompt`, `session/resume`, and `session/history`). */
+  sessionId: string
+  /** Working directory recorded on the session header; absent when the session recorded none. */
+  cwd?: string
+  /** Session creation time in epoch milliseconds. */
+  createdAt: number
+  /** Latest folded title; absent when the log carries no `session/title` event. */
+  title?: string
+}
+
+/** One `session/list` entry: a descriptor plus whether it is live and/or persisted. */
+export interface SessionListEntry extends SessionDescriptor {
+  /** Whether the id currently exists as a live agent in this runtime. */
+  live: boolean
+  /** Whether the active persistence backend currently lists the id. */
+  persisted: boolean
+  /** Whether the id sits in the registry-global archive set (hidden from grouping surfaces). */
+  archived: boolean
+}
+
+/** Parameters for `session/list`. */
+export interface SessionListParams {
+  /** Optional exact working-directory filter over the session headers. */
+  cwd?: string
+  /** Optional positive cap on returned sessions; the corpus is newest-first. */
+  limit?: number
+}
+
+/** `session/list` result: newest first. */
+export interface SessionListResult {
+  /** The matching sessions, newest first. */
+  sessions: SessionListEntry[]
+}
+
+/** Parameters for `session/history`. */
+export interface SessionHistoryParams {
+  /** Stored session to read; an unknown id is an error. */
+  sessionId: string
+  /** Optional positive cap: when set, only the newest `limit` events are returned. */
+  limit?: number
+}
+
+/** `session/history` result: one session's raw log, exactly as recorded. */
+export interface SessionHistoryResult {
+  /** Identity and metadata for the read session. */
+  session: SessionDescriptor
+  /** Raw log events in log order (the newest `limit` of them when a cap was given). */
+  events: SessionEvent[]
+  /** Whether events were dropped from the front of the log to satisfy `limit`. */
+  truncated: boolean
+}
+
+/** Parameters for `session/rename`. */
+export interface SessionRenameParams {
+  /** Live session to rename; a persisted-but-not-live session must be resumed first. */
+  sessionId: string
+  /** Raw user title; the title service normalizes and rejects non-visible input. */
+  title: string
+}
+
+/** `session/rename` result. */
+export interface SessionRenameResult {
+  /** The renamed session id (echo of the request). */
+  sessionId: string
+  /** The accepted, normalized title as folded from the appended event. */
+  title: string
+}
+
+/** Parameters for `session/abort`. */
+export interface SessionAbortParams {
+  /** Session whose running turn to abort; must be live in this runtime. */
+  sessionId: string
+}
+
+/** `session/abort` result. */
+export interface SessionAbortResult {
+  /** The affected session id (echo of the request). */
+  sessionId: string
+  /** Whether a running turn was actually cancelled (false when already idle). */
+  aborted: boolean
+}
+
+/** Parameters for `session/archive` and `session/unarchive`. */
+export interface SessionArchiveParams {
+  /** Session to (un)archive; an id neither live nor persisted is an error. */
+  sessionId: string
+}
+
+/** `session/archive` / `session/unarchive` result. */
+export interface SessionArchiveResult {
+  /** The affected session id (echo of the request). */
+  sessionId: string
+  /** The session's archive membership after the call. */
+  archived: boolean
+}
+
 /** Server-to-client notifications by JSON-RPC method name. */
 export interface HarnessSdkNotificationMap {
   'session.event': SessionEventNotification
@@ -149,5 +247,12 @@ export interface HarnessSdkRequestMap {
   'session/wait': { params: SessionWaitParams; result: Record<string, never> }
   'session/working-directory/get': { params: SessionWorkingDirectoryParams; result: SessionWorkingDirectoryResult }
   'session/working-directory/set': { params: SessionWorkingDirectorySetParams; result: SessionWorkingDirectoryResult }
+  'session/list': { params: SessionListParams; result: SessionListResult }
+  'session/history': { params: SessionHistoryParams; result: SessionHistoryResult }
+  'session/rename': { params: SessionRenameParams; result: SessionRenameResult }
+  /** Abort one session's running turn (user cancel; idempotent no-op when idle). */
+  'session/abort': { params: SessionAbortParams; result: SessionAbortResult }
+  'session/archive': { params: SessionArchiveParams; result: SessionArchiveResult }
+  'session/unarchive': { params: SessionArchiveParams; result: SessionArchiveResult }
   'shutdown': { params: undefined; result: Record<string, never> }
 }

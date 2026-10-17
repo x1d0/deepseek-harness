@@ -33,7 +33,7 @@ kind: "package-library"
 
 ### SDK 方法
 
-两个协议端共享同一套方法：七个客户端到服务端请求与四个服务端到客户端通知。
+两个协议端共享同一套方法：十三个客户端到服务端请求与四个服务端到客户端通知。
 
 | 方向 | 方法 | 载荷类型 |
 |---|---|---|
@@ -43,6 +43,12 @@ kind: "package-library"
 | client→server | `session/wait` | `SessionWaitParams` → `{}` |
 | 客户端→服务端 | `session/working-directory/get` | `SessionWorkingDirectoryParams` → `SessionWorkingDirectoryResult` |
 | 客户端→服务端 | `session/working-directory/set` | `SessionWorkingDirectorySetParams` → `SessionWorkingDirectoryResult` |
+| client→server | `session/list` | `SessionListParams` → `SessionListResult`（最新在前的会话描述符） |
+| client→server | `session/history` | `SessionHistoryParams` → `SessionHistoryResult`（原始日志事件） |
+| client→server | `session/rename` | `SessionRenameParams` → `SessionRenameResult` |
+| client→server | `session/abort` | `SessionAbortParams` → `SessionAbortResult` |
+| client→server | `session/archive` | `SessionArchiveParams` → `SessionArchiveResult` |
+| client→server | `session/unarchive` | `SessionArchiveParams` → `SessionArchiveResult` |
 | client→server | `shutdown` | 无参数 → `{}` |
 | server→client | `session.event` | `SessionEventNotification`（运行时内每个会话，不过滤） |
 | server→client | `session.status` | `SessionStatusNotification`（整个 agent（智能体）的 `running`/`idle` 转换） |
@@ -56,6 +62,8 @@ kind: "package-library"
 `session/resume` 接受非空的持久化 `{ sessionId }`，恢复该会话后返回 `{}`。它要求先完成初始化并使用原持久化存储，不发送新输入；会话缺失、不可读、不兼容或被占用时，请求失败且不创建替代会话。历史事件保留在存储日志中，通知只报告新提交的事件。
 
 ### 载荷语义
+
+`session/list` 与 `session/history` 读取部署的 `sessionQuery` 服务（`sdk-minimal` 这类部署不挂载它，会收到带说明的错误）；`session/list` 最新在前、按精确 `cwd` 过滤、用 `limit` 截断，并给出每条记录的 `live`/`persisted`/`archived` 标记与折叠后的 `session/title`。`session/history` 以 `session.event` 同一套事件词汇返回原始日志——传 `limit` 只取最新事件，读 `truncated` 得知更早的已被丢弃。`session/rename` 通过部署的 `sessionTitle` 服务追加一条用户自有的 `session/title` 事件，因此被接受的标题是每个前端都会读到的持久会话状态，而非客户端本地别名；它先恢复已持久化的会话或创建不存在的会话，再执行改名，并拒绝规范化后为空白的标题。`session/abort` 以用户取消的因果中止一个会话正在跑的回合——回合以 `turn/end` 的 `aborted` 结局收束（事件流上明着可见），下一条提示词开启新回合；只有本运行时内活跃的会话才有回合可中止（绝不续接、绝不新建），对空闲会话调用是幂等 no-op（报 `aborted: false`）。`session/archive` 与 `session/unarchive` 把一个会话加进／移出部署的 `workspaceRegistry` 全局归档集——那是一个与 web 前端共享的纯可见性标记，归档的 id 在两个前端的分组界面里都会隐藏起来，而会话日志与工作区记账绝不动；两次调用都幂等，未知 id 直接拒绝（绝不新建），并且要求部署挂载 `workspaceRegistry` 服务（`dsh-sdk-app` 挂 `@deepseek-ai/dsh-workspace`；`sdk-minimal` 不挂，会收到带说明的错误）。`session/list` 的 `archived` 标记是尽力而为：没有注册表时一律读作未归档。
 
 `SessionPromptResult.messageId` 标识已排队的用户消息；它不标识后续的助手消息、轮次结束或提示词结果。`SdkPromptContentBlock` 接受普通持久内容以及 `SdkEncodedImageBlock { type: "image", data, mimeType }`；服务器在入队前把编码图像转换为持久引用。`InitializeParams.reasoningEffort` 是所选提供方／模型路由可选的非空适配器自有标识符；省略时保留该模型的默认值。`InitializeParams.maxTokens` 是可选的正安全整数，用于限制 SDK 创建的 agent 及其进程内后代的每次对话模型输出；省略时应用所选适配器的确切模型默认值。服务器会在初始化期间解析确切路由，并在握手成功前拒绝 `session/prompt`，因此缺少适配器、模型不可用或推理强度不受支持时，不会回退到构造期默认值。`SubagentFinishedNotification.lastAssistantMessage` 携带子 agent 最后一条非空 assistant 消息；若不存在这类消息，则携带其累积的 assistant 文本；子 agent 两种输出均未产生时，该字段缺省。`serverInfo.name` 的协议值固定为 `deepseek-harness-sdk-runtime`。通知载荷依赖 `SessionEvent`（`dsh-session`）、`ContentBlock`（`dsh-llm`）与 `SubagentStopReason`（`dsh-subagent`），因此会话词汇是协议格式约定的一部分。
 

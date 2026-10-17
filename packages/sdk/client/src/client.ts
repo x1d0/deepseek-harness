@@ -18,7 +18,19 @@ import {
   JsonRpcResponseError,
   type InitializeParams,
   type InitializeResult,
+  type SessionAbortParams,
+  type SessionAbortResult,
+  type SessionArchiveParams,
+  type SessionArchiveResult,
+  type SessionDescriptor,
+  type SessionHistoryParams,
+  type SessionHistoryResult,
+  type SessionListEntry,
+  type SessionListParams,
+  type SessionListResult,
   type SessionPromptParams,
+  type SessionRenameParams,
+  type SessionRenameResult,
   type SdkPromptContentBlock,
 } from '@deepseek-ai/dsh-sdk-protocol'
 import { disposeRuntimeProcess } from './dispose.ts'
@@ -334,6 +346,101 @@ export class HarnessClient {
   }
 
   /**
+   * List the runtime's session corpus, newest first.
+   *
+   * The `sessionQuery` service backs this method: a deployment that does not
+   * mount it (`sdk-minimal`) answers an explanatory JSON-RPC error instead,
+   * which reaches the caller as {@link JsonRpcResponseError}.
+   * @param params - optional exact-`cwd` filter and positive result cap.
+   * @returns the runtime's descriptors, newest first.
+   */
+  async listSessions(params: SessionListParams = {}): Promise<SessionListResult> {
+    const result = await this.request('session/list', { ...params })
+    if (!isRecord(result) || !Array.isArray(result.sessions)) {
+      throw new SdkProtocolError(`session/list returned no session list: ${JSON.stringify(result)}`)
+    }
+    return { sessions: result.sessions.map(validatedSessionEntry) }
+  }
+
+  /**
+   * Read one persisted session's raw log without making it live.
+   *
+   * The events keep the wire vocabulary `session.event` carries, so callers
+   * render history with the rendering they already have.
+   * @param params - target session and optional newest-events cap.
+   * @returns the session identity, its log events, and whether older ones were dropped.
+   */
+  async sessionHistory(params: SessionHistoryParams): Promise<SessionHistoryResult> {
+    const result = await this.request('session/history', { ...params })
+    if (!isRecord(result) || !Array.isArray(result.events) || typeof result.truncated !== 'boolean') {
+      throw new SdkProtocolError(`session/history returned no session log: ${JSON.stringify(result)}`)
+    }
+    return {
+      session: validatedSessionDescriptor(result.session),
+      events: result.events as SessionHistoryResult['events'],
+      truncated: result.truncated,
+    }
+  }
+
+  /**
+   * Rename one live session by appending an explicit user-owned title.
+   *
+   * The title is durable session state every front end reads, not a
+   * client-local alias. The runtime only accepts a session live in its own
+   * process, so a persisted session must be resumed first; a blank title is a
+   * JSON-RPC error.
+   * @param params - the live session and the raw user title.
+   * @returns the accepted, normalized title.
+   */
+  async renameSession(params: SessionRenameParams): Promise<SessionRenameResult> {
+    const result = await this.request('session/rename', { ...params })
+    if (!isRecord(result) || typeof result.sessionId !== 'string' || typeof result.title !== 'string') {
+      throw new SdkProtocolError(`session/rename returned no accepted title: ${JSON.stringify(result)}`)
+    }
+    return { sessionId: result.sessionId, title: result.title }
+  }
+
+  /**
+   * Abort one session's running turn (user cancel).
+   * @param params - the session whose turn to abort.
+   * @returns the id and whether a running turn was actually cancelled.
+   */
+  async abortSession(params: SessionAbortParams): Promise<SessionAbortResult> {
+    const result = await this.request('session/abort', { ...params })
+    if (!isRecord(result) || typeof result.sessionId !== 'string' || typeof result.aborted !== 'boolean') {
+      throw new SdkProtocolError(`session/abort returned no abort outcome: ${JSON.stringify(result)}`)
+    }
+    return { sessionId: result.sessionId, aborted: result.aborted }
+  }
+
+  /**
+   * Add one session to the registry-global archive set (idempotent).
+   * @param params - the session to archive.
+   * @returns the id and its membership after the call.
+   */
+  async archiveSession(params: SessionArchiveParams): Promise<SessionArchiveResult> {
+    return this.requestedArchive('session/archive', params)
+  }
+
+  /**
+   * Drop one session from the registry-global archive set (idempotent).
+   * @param params - the session to unarchive.
+   * @returns the id and its membership after the call.
+   */
+  async unarchiveSession(params: SessionArchiveParams): Promise<SessionArchiveResult> {
+    return this.requestedArchive('session/unarchive', params)
+  }
+
+  /** Shared wire exchange for `session/archive` and `session/unarchive`. */
+  private async requestedArchive(method: 'session/archive' | 'session/unarchive', params: SessionArchiveParams): Promise<SessionArchiveResult> {
+    const result = await this.request(method, { ...params })
+    if (!isRecord(result) || typeof result.sessionId !== 'string' || typeof result.archived !== 'boolean') {
+      throw new SdkProtocolError(`${method} returned no archive membership: ${JSON.stringify(result)}`)
+    }
+    return { sessionId: result.sessionId, archived: result.archived }
+  }
+
+  /**
    * Send one JSON-RPC request and await its result.
    * @param method - the wire method name.
    * @param params - the params object; omitted params send `{}`.
@@ -516,6 +623,41 @@ export function createProcessHarnessClient(options: RuntimeProcessOptions): Harn
  * @param value - the wire value to probe.
  * @returns `true` iff `value` is a non-null, non-array object.
  */
+/**
+ * Validate one session descriptor: the shared core of a `session/list` entry
+ * and the `session` field `session/history` returns.
+ * @param value - the raw descriptor off the wire.
+ * @returns the descriptor with its optional fields present only when they are strings.
+ */
+function validatedSessionDescriptor(value: unknown): SessionDescriptor {
+  if (!isRecord(value) || typeof value.sessionId !== 'string' || typeof value.createdAt !== 'number') {
+    throw new SdkProtocolError(`session descriptor has no sessionId/createdAt: ${JSON.stringify(value)}`)
+  }
+  return {
+    sessionId: value.sessionId,
+    createdAt: value.createdAt,
+    ...typeof value.cwd === 'string' ? { cwd: value.cwd } : {},
+    ...typeof value.title === 'string' ? { title: value.title } : {},
+  }
+}
+
+/**
+ * Validate one `session/list` entry: a descriptor plus its liveness flags.
+ * Malformed entries are rejected here rather than leaking type-invalid data.
+ * @param value - one raw entry off the wire.
+ * @returns the entry with only its declared fields.
+ */
+function validatedSessionEntry(value: unknown): SessionListEntry {
+  const descriptor = validatedSessionDescriptor(value)
+  const flags = value as Record<string, unknown>
+  if (typeof flags.live !== 'boolean' || typeof flags.persisted !== 'boolean') {
+    throw new SdkProtocolError(`session/list entry has no live/persisted flags: ${JSON.stringify(value)}`)
+  }
+  // `archived` is synthesized leniently: a server predating the archive surface
+  // lists nothing archived, which is the honest reading of "no such flag".
+  return { ...descriptor, live: flags.live, persisted: flags.persisted, archived: flags.archived === true }
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

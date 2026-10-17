@@ -18,6 +18,13 @@ export interface EntryOptions {
   group?: boolean | null
   /** Prevents this entry and descendants from running. */
   disabled?: boolean | null
+  /**
+   * Defers this entry's import and activation until `EntryTree.wakeLazy()`.
+   * For rows no handshake-path plugin depends on: `loader.await()` (and so
+   * `initialize`) never waits for them, and their module graphs stay out of
+   * the startup import queue.
+   */
+  lazy?: boolean | null
   /** Required services or service intercept config for this entry. */
   inject?: Inject | null
 }
@@ -54,6 +61,8 @@ export class Entry {
   public subtree?: EntryTree
 
   _initTask?: Promise<void>
+  /** Whether a wake (or a non-lazy start) has begun this entry. */
+  public woken = false
 
   constructor(public loader: Loader) {
     this.ctx = loader.ctx.extend({ [Entry.key]: this })
@@ -85,6 +94,16 @@ export class Entry {
   }
 
   /**
+   * Effective lazy state: a `!!js` expression evaluates against the loader
+   * context. The raw node stays in the options, so write-back keeps the form.
+   */
+  get lazy() {
+    return isJsExpr(this.options.lazy)
+      ? Boolean(this.evaluate(this.options.lazy.__jsExpr))
+      : Boolean(this.options.lazy)
+  }
+
+  /**
    * Effective disabled state: a `!!js` expression evaluates against the loader
    * context. The raw node stays in the options, so write-back keeps the form.
    */
@@ -111,6 +130,7 @@ export class Entry {
   async refresh() {
     if (this.fiber) return
     if (this.disabled) return
+    if (this.lazy && !this.woken) return
     await this.init()
   }
 
@@ -133,7 +153,7 @@ export class Entry {
     sortKeys(this.options)
 
     // step 2: execute
-    if (this.disabled) {
+    if (this.disabled || (this.lazy && !this.woken)) {
       this.fiber?.dispose()
       return
     }
@@ -208,6 +228,7 @@ export class Entry {
 
   /** Import and start the configured plugin if it is not already running. */
   async init() {
+    this.woken = true
     try {
       await (this._initTask ??= this._init())
     } finally {

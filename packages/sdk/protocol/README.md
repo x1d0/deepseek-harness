@@ -33,7 +33,7 @@ Wire one JSON-RPC 2.0 message per `\n`-terminated line over byte streams you own
 
 ### The SDK methods
 
-Both wire ends share one method set: seven client-to-server requests and four server-to-client notifications.
+Both wire ends share one method set: thirteen client-to-server requests and four server-to-client notifications.
 
 | Direction | Method | Payload types |
 |---|---|---|
@@ -43,6 +43,12 @@ Both wire ends share one method set: seven client-to-server requests and four se
 | client→server | `session/wait` | `SessionWaitParams` → `{}` |
 | client→server | `session/working-directory/get` | `SessionWorkingDirectoryParams` → `SessionWorkingDirectoryResult` |
 | client→server | `session/working-directory/set` | `SessionWorkingDirectorySetParams` → `SessionWorkingDirectoryResult` |
+| client→server | `session/list` | `SessionListParams` → `SessionListResult` (newest-first descriptors) |
+| client→server | `session/history` | `SessionHistoryParams` → `SessionHistoryResult` (raw log events) |
+| client→server | `session/rename` | `SessionRenameParams` → `SessionRenameResult` |
+| client→server | `session/abort` | `SessionAbortParams` → `SessionAbortResult` |
+| client→server | `session/archive` | `SessionArchiveParams` → `SessionArchiveResult` |
+| client→server | `session/unarchive` | `SessionArchiveParams` → `SessionArchiveResult` |
 | client→server | `shutdown` | no params → `{}` |
 | server→client | `session.event` | `SessionEventNotification` (every session in the runtime, unfiltered) |
 | server→client | `session.status` | `SessionStatusNotification` (whole-agent `running`/`idle` transition) |
@@ -56,6 +62,8 @@ Both wire ends share one method set: seven client-to-server requests and four se
 `session/resume` accepts a non-empty persisted `{ sessionId }` and returns `{}` after restoring that exact session. It requires initialization and the original persistence store, sends no new input, and rejects missing, unreadable, incompatible, or occupied sessions without creating a replacement. Historical events remain in the stored log; notifications report newly committed events.
 
 ### Payload semantics
+
+`session/list` and `session/history` read the deployment's `sessionQuery` service (an `sdk-minimal` deployment does not mount it and receives an explanatory error); `session/list` is newest-first, filters by exact `cwd`, caps with `limit`, and reports each entry's `live`/`persisted`/`archived` flags together with its folded `session/title`. `session/history` returns the raw log in the same event vocabulary `session.event` carries — pass `limit` to fetch only the newest events, and read `truncated` to learn that older ones were dropped. `session/rename` appends an explicit user-owned `session/title` event through the deployment's `sessionTitle` service, so the accepted title is durable session state every front end reads rather than a client-local alias; it restores a persisted session or creates a missing session before renaming, and rejects a title that normalizes to empty. `session/abort` cancels one session's running turn with a user cause — the turn closes with a `turn/end` reason of `aborted` on the event stream, the next prompt starts a fresh turn, only a session live in this runtime has a turn to abort (nothing is resumed or created), and aborting an idle session is an idempotent no-op reported as `aborted: false`. `session/archive` and `session/unarchive` move one session in and out of the deployment's `workspaceRegistry` global archive set — a pure visibility mark shared with the web front end, so archived ids drop out of every grouping surface in both front ends while the log and workspace accounting are never touched; both calls are idempotent, an unknown id rejects (never created), and they require the `workspaceRegistry` service (`dsh-sdk-app` mounts `@deepseek-ai/dsh-workspace`; `sdk-minimal` does not and receives an explanatory error). `session/list`'s `archived` flag is best-effort: without the registry, everything lists as unarchived.
 
 `SessionPromptResult.messageId` identifies the queued user message; it does not identify a later assistant message, turn ending, or prompt result. `SdkPromptContentBlock` accepts ordinary durable content plus `SdkEncodedImageBlock { type: "image", data, mimeType }`; the server converts encoded images to durable references before enqueue. `InitializeParams.reasoningEffort` is an optional non-empty adapter-owned identifier for the selected provider/model route; omission preserves that model's default. `InitializeParams.maxTokens` is an optional positive safe integer that caps each conversation-model output for SDK-created agents and their in-process descendants; omission lets the selected adapter's exact-model default apply. The server resolves the exact route during initialization and rejects `session/prompt` until that handshake succeeds, so a missing adapter, unavailable model, or unsupported effort cannot fall back to constructor defaults. `SubagentFinishedNotification.lastAssistantMessage` carries the child's last non-empty assistant message, or its accumulated assistant text when no such message exists; the field is absent when the child produced neither. `serverInfo.name` stays the wire-stable `deepseek-harness-sdk-runtime`. Notification payloads depend on `SessionEvent` (`dsh-session`), `ContentBlock` (`dsh-llm`), and `SubagentStopReason` (`dsh-subagent`), so the session vocabulary is part of the wire contract.
 

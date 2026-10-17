@@ -15,7 +15,18 @@ from typing import Callable, TypeAlias, TypeVar
 from pydantic import BaseModel
 
 from .errors import JsonRpcError, SdkProtocolError, TransportClosedError
-from .models import IncomingRequest, InitializeResponse, JsonObject, JsonValue, Notification
+from .models import (
+    IncomingRequest,
+    InitializeResponse,
+    JsonObject,
+    JsonValue,
+    Notification,
+    SessionAbortResult,
+    SessionArchiveResult,
+    SessionHistoryResult,
+    SessionListResult,
+    SessionRenameResult,
+)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 NotificationFilter: TypeAlias = Callable[[Notification], bool]
@@ -213,6 +224,60 @@ class HarnessClient:
             response_model=_WorkingDirectoryResponse,
         )
         return response.cwd
+    def list_sessions(
+        self,
+        *,
+        cwd: str | None = None,
+        limit: int | None = None,
+    ) -> SessionListResult:
+        payload: JsonObject = {}
+        if cwd is not None:
+            payload["cwd"] = cwd
+        if limit is not None:
+            payload["limit"] = limit
+        return self.request("session/list", payload, response_model=SessionListResult)
+
+    def session_history(
+        self,
+        session_id: str,
+        *,
+        limit: int | None = None,
+    ) -> SessionHistoryResult:
+        payload: JsonObject = {"sessionId": session_id}
+        if limit is not None:
+            payload["limit"] = limit
+        return self.request("session/history", payload, response_model=SessionHistoryResult)
+
+    def rename_session(self, session_id: str, title: str) -> SessionRenameResult:
+        """Rename one live session; the runtime rejects a non-live id or a blank title."""
+        return self.request(
+            "session/rename",
+            {"sessionId": session_id, "title": title},
+            response_model=SessionRenameResult,
+        )
+
+    def abort_session(self, session_id: str) -> SessionAbortResult:
+        """Abort one live session's running turn; idle reports `aborted: False`."""
+        return self.request(
+            "session/abort",
+            {"sessionId": session_id},
+            response_model=SessionAbortResult,
+        )
+
+    def archive_session(self, session_id: str) -> SessionArchiveResult:
+        """Add one session to the registry-global archive set (idempotent)."""
+        return self._archive("session/archive", session_id)
+
+    def unarchive_session(self, session_id: str) -> SessionArchiveResult:
+        """Drop one session from the archive set (idempotent)."""
+        return self._archive("session/unarchive", session_id)
+
+    def _archive(self, method: str, session_id: str) -> SessionArchiveResult:
+        return self.request(
+            method,
+            {"sessionId": session_id},
+            response_model=SessionArchiveResult,
+        )
 
     def request(
         self,

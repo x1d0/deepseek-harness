@@ -765,3 +765,62 @@ describe('pure helpers', () => {
     ])).toBe('ab')
   })
 })
+
+describe('session surface', () => {
+  it('lists the runtime session corpus with its descriptor fields', async () => {
+    const entry = {
+      sessionId: 'session-a',
+      cwd: '/tmp/project',
+      createdAt: 7,
+      title: 'first turn',
+      live: true,
+      persisted: true,
+    }
+    // 客户端把缺省的 archived 标志合成为 false（旧服务端不报归档状态）。
+    const listed = { ...entry, archived: false }
+    const harness = harnessWith({ FAKE_SESSION_LIST_JSON: JSON.stringify([entry]) })
+    await expect(harness.listSessions()).resolves.toEqual({ sessions: [listed] })
+    await expect(harness.listSessions({ cwd: '/tmp/project', limit: 1 })).resolves.toEqual({ sessions: [listed] })
+  })
+
+  it('reads one persisted log together with its truncation flag', async () => {
+    const payload = {
+      session: { sessionId: 'session-a', createdAt: 7, title: 'first turn' },
+      events: [{ type: 'session/title', seq: 0, time: 1, data: { title: 'first turn' } }],
+      truncated: true,
+    }
+    const harness = harnessWith({ FAKE_SESSION_HISTORY_JSON: JSON.stringify(payload) })
+    await expect(harness.sessionHistory({ sessionId: 'session-a', limit: 1 })).resolves.toEqual(payload)
+  })
+
+  it('restores through the session handle', async () => {
+    await expect(harnessWith().session('session-a').resume()).resolves.toBeUndefined()
+  })
+
+  it('propagates the runtime refusal to resume an unknown session', async () => {
+    const harness = harnessWith({ FAKE_RESUME_ERROR: '1' })
+    await expect(harness.resumeSession('session-missing'))
+      .rejects.toThrow(/session not found/)
+  })
+
+  it('renames a live session and returns the accepted title', async () => {
+    const harness = harnessWith()
+    await expect(harness.renameSession({ sessionId: 'session-a', title: '  new  name  ' }))
+      .resolves.toEqual({ sessionId: 'session-a', title: 'new  name' })
+    // The session handle exposes the same call for its own id.
+    await expect(harness.session('session-a').rename('another')).resolves.toBe('another')
+  })
+
+  it('propagates the runtime refusal to accept a blank title', async () => {
+    const harness = harnessWith({ FAKE_RENAME_ERROR: '1' })
+    await expect(harness.renameSession({ sessionId: 'session-a', title: '   ' }))
+      .rejects.toThrow(/visible characters/)
+  })
+
+  it('rejects a malformed session-surface payload as a protocol error', async () => {
+    const harness = harnessWith({ FAKE_MALFORMED_SESSION: '1' })
+    await expect(harness.listSessions()).rejects.toThrow(SdkProtocolError)
+    await expect(harness.sessionHistory({ sessionId: 'session-a' })).rejects.toThrow(SdkProtocolError)
+    await expect(harness.renameSession({ sessionId: 'session-a', title: 'x' })).rejects.toThrow(SdkProtocolError)
+  })
+})

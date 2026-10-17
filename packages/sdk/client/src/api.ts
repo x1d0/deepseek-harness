@@ -9,6 +9,18 @@
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
+import type {
+  SessionHistoryParams,
+  SessionHistoryResult,
+  SessionListParams,
+  SessionListResult,
+  SessionAbortParams,
+  SessionAbortResult,
+  SessionArchiveParams,
+  SessionArchiveResult,
+  SessionRenameParams,
+  SessionRenameResult,
+} from '@deepseek-ai/dsh-sdk-protocol'
 import { createProcessHarnessClient, HarnessClient, isRecord, SdkProtocolError } from './client.ts'
 import type { RuntimeProcessOptions } from './launch.ts'
 import type { ContentBlock, DeepSeekHarnessOptions, HarnessNotification, RunResult, SdkPromptContentBlock } from './types.ts'
@@ -127,6 +139,73 @@ export class DeepSeekHarness implements AsyncDisposable {
   }
 
   /**
+   * List the runtime's session corpus, newest first.
+   * @param params - optional exact-`cwd` filter and positive result cap.
+   * @returns the runtime's descriptors, newest first.
+   */
+  async listSessions(params: SessionListParams = {}): Promise<SessionListResult> {
+    await this.start()
+    return this.client.listSessions(params)
+  }
+
+  /**
+   * Read one persisted session's raw log without making it live.
+   * @param params - target session and optional newest-events cap.
+   * @returns the session identity, its log events, and the truncation flag.
+   */
+  async sessionHistory(params: SessionHistoryParams): Promise<SessionHistoryResult> {
+    await this.start()
+    return this.client.sessionHistory(params)
+  }
+
+  /**
+   * Rename one live session through the runtime's session-title service.
+   *
+   * Only a session live in the runtime can be renamed; pass a persisted one to
+   * {@link resumeSession} (or {@link HarnessSession.resume}) first.
+   * @param params - the live session and the raw user title.
+   * @returns the accepted, normalized title.
+   */
+  async renameSession(params: SessionRenameParams): Promise<SessionRenameResult> {
+    await this.start()
+    return this.client.renameSession(params)
+  }
+
+  /**
+   * Abort one session's running turn with a user cancel cause: the turn closes
+   * with a `turn/end` reason of `aborted`, and the next prompt starts fresh.
+   * Only a live session has a turn to abort; an idle session is a no-op.
+   * @param params - the session whose turn to abort.
+   * @returns the id and whether a running turn was actually cancelled.
+   */
+  async abortSession(params: SessionAbortParams): Promise<SessionAbortResult> {
+    await this.start()
+    return this.client.abortSession(params)
+  }
+
+  /**
+   * Add one session to the registry-global archive set: pure visibility, the
+   * log and workspace accounting are never touched. Idempotent; the session
+   * must exist (live or persisted).
+   * @param params - the session to archive.
+   * @returns the id and its membership after the call (`archived: true`).
+   */
+  async archiveSession(params: SessionArchiveParams): Promise<SessionArchiveResult> {
+    await this.start()
+    return this.client.archiveSession(params)
+  }
+
+  /**
+   * Drop one session from the registry-global archive set (idempotent).
+   * @param params - the session to unarchive.
+   * @returns the id and its membership after the call (`archived: false`).
+   */
+  async unarchiveSession(params: SessionArchiveParams): Promise<SessionArchiveResult> {
+    await this.start()
+    return this.client.unarchiveSession(params)
+  }
+
+  /**
    * Shut down and reap the runtime subprocess. Idempotent and terminal —
    * a closed harness no longer retries a failed handshake.
    * @returns settlement of the complete teardown.
@@ -195,6 +274,49 @@ export class HarnessSession {
   async setWorkingDirectory(path: string): Promise<string> {
     await this.harness.start()
     return this.harness.client.setWorkingDirectory(this.id, path)
+  }
+
+  /**
+   * Resume this session's persisted history in the runtime, so the next
+   * {@link run} continues it instead of creating a session.
+   * @returns after restoration; an already owned session rejects.
+   */
+  async resume(): Promise<void> {
+    await this.harness.start()
+    await this.harness.client.resumeSession(this.id)
+  }
+
+  /**
+   * Rename this session (the runtime must own it; call {@link resume} first
+   * for a persisted one).
+   * @param title - raw user title; the runtime normalizes and rejects blanks.
+   * @returns the accepted, normalized title.
+   */
+  async rename(title: string): Promise<string> {
+    const result = await this.harness.renameSession({ sessionId: this.id, title })
+    return result.title
+  }
+
+  /**
+   * Archive this session (visibility only: the log and workspace accounting
+   * stay untouched; {@link unarchive} brings it back).
+   */
+  async archive(): Promise<void> {
+    await this.harness.archiveSession({ sessionId: this.id })
+  }
+
+  /** Remove this session from the archive set (idempotent). */
+  async unarchive(): Promise<void> {
+    await this.harness.unarchiveSession({ sessionId: this.id })
+  }
+
+  /**
+   * Abort this session's running turn.
+   * @returns whether a running turn was actually cancelled (false when idle).
+   */
+  async abort(): Promise<boolean> {
+    const result = await this.harness.abortSession({ sessionId: this.id })
+    return result.aborted
   }
 
   /**

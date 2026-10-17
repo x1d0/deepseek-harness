@@ -7,7 +7,15 @@ from typing import Callable
 
 from .client import HarnessClient, HarnessConfig
 from .errors import SdkProtocolError
-from .models import JsonObject, Notification
+from .models import (
+    JsonObject,
+    Notification,
+    SessionAbortResult,
+    SessionArchiveResult,
+    SessionHistoryResult,
+    SessionListResult,
+    SessionRenameResult,
+)
 
 
 @dataclass(slots=True)
@@ -139,6 +147,33 @@ class DeepSeekHarness:
     ) -> RunResult:
         return self.start_session(session_id).run(input, on_notification=on_notification)
 
+    def list_sessions(self, *, cwd: str | None = None, limit: int | None = None) -> SessionListResult:
+        self.start()
+        return self._client.list_sessions(cwd=cwd, limit=limit)
+
+    def session_history(self, session_id: str, *, limit: int | None = None) -> SessionHistoryResult:
+        self.start()
+        return self._client.session_history(session_id, limit=limit)
+
+    def rename_session(self, session_id: str, title: str) -> SessionRenameResult:
+        self.start()
+        return self._client.rename_session(session_id, title)
+
+    def abort_session(self, session_id: str) -> SessionAbortResult:
+        """Abort one live session's running turn (idle is a reported no-op)."""
+        self.start()
+        return self._client.abort_session(session_id)
+
+    def archive_session(self, session_id: str) -> SessionArchiveResult:
+        """Add one session to the registry-global archive set (visibility only)."""
+        self.start()
+        return self._client.archive_session(session_id)
+
+    def unarchive_session(self, session_id: str) -> SessionArchiveResult:
+        """Drop one session from the archive set (idempotent)."""
+        self.start()
+        return self._client.unarchive_session(session_id)
+
 
 class Session:
     def __init__(self, harness: DeepSeekHarness, session_id: str) -> None:
@@ -154,6 +189,25 @@ class Session:
         """Change the effective directory while existing processes retain their own directories."""
         self.harness.start()
         return self.harness.client.set_working_directory(self.id, path)
+    def resume(self) -> None:
+        self.harness.start()
+        self.harness.client.resume_session(self.id)
+
+    def rename(self, title: str) -> str:
+        """Rename this live session; resume a persisted one first."""
+        return self.harness.rename_session(self.id, title).title
+
+    def abort(self) -> bool:
+        """Abort this session's running turn; False when it was already idle."""
+        return self.harness.abort_session(self.id).aborted
+
+    def archive(self) -> None:
+        """Archive this session (log and workspace accounting untouched)."""
+        self.harness.archive_session(self.id)
+
+    def unarchive(self) -> None:
+        """Remove this session from the archive set."""
+        self.harness.unarchive_session(self.id)
 
     def run(
         self,
