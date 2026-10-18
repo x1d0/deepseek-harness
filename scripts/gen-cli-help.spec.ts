@@ -1,7 +1,7 @@
 /** Command discovery and complete output preservation for the CLI reference. */
 
 import { describe, expect, it } from 'vitest'
-import { collectCliHelp, parseCliHelp, prefetchHelp, topLevelHelpArgs } from './gen-cli-help.ts'
+import { cliHelpNodeArgs, collectCliHelp, parseCliHelp, prefetchHelp, topLevelHelpArgs } from './gen-cli-help.ts'
 
 interface PendingRead {
   args: string
@@ -27,6 +27,17 @@ async function flush(): Promise<void> {
 }
 
 describe('CLI help discovery', () => {
+  it('exposes Node internals only for the Android source launcher', () => {
+    expect(cliHelpNodeArgs(['acp'], 'android')).toEqual([
+      '--expose-internals', '--import', 'tsx/esm', 'apps/cli/src/bin.ts', 'acp', '--help',
+    ])
+    for (const platform of ['linux', 'darwin', 'win32'] as const) {
+      expect(cliHelpNodeArgs(['--profile', 'sdk'], platform)).toEqual([
+        '--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'sdk', '--help',
+      ])
+    }
+  })
+
   it('reads command rows while retaining wrapped descriptions and examples', () => {
     const help = 'Usage: dsh\r\n\r\nCommands:\r\n  web [options]  Serve the browser\r\n                 with a wrapped description\r\n  plugin         Manage plugins\r\n\r\nExamples:\r\n  dsh web\r\n'
     const result = parseCliHelp(help)

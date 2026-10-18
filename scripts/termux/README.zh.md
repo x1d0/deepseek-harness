@@ -41,6 +41,16 @@ clang -shared -fPIC native/system/packages/entry/src/flock.c \
   -I$PREFIX/include/node -o native/system/prebuilds/android-arm64/system.node
 ```
 
+## 文档检查
+
+在 Termux 上运行文档检查时，增加 Node 堆上限并限制并发：
+
+```bash
+CI=true NODE_OPTIONS=--max-old-space-size=4096 DSH_GATE_CONCURRENCY=2 pnpm run doc-sync
+```
+
+CLI 帮助生成器为 Android 子进程添加 `--expose-internals`，其他平台保持常规源码启动参数。仓库引用检查忽略 `uv.lock` 中未加引号的归档 `size` 整数，但仍检查同一行其他位置的引用。
+
 ## 未纳入仓库
 
 `~/.dsh/profiles/{sdk,web,headless}`、`~/.dsh/settings.yaml`、`~/.dsh/storages`、`~/.config/xi/config.toml`、
