@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write scripts/termux/README.md
-README.md: a44a3f9f7ee087caefd24095e2c4f311af9d4493
-README.zh.md: edd11aef3f66ffe4b5706951fd9d5c7a6f0eadb7
+/termux-deployment-artifacts:
+  en: eb68d6869fe8788e
+  zh: d37ed39ccd99545c
+/termux-deployment-artifacts/dsh-launcher:
+  en: d8e6380d7d68d742
+  zh: b613e6821468f59e
+/termux-deployment-artifacts/native-system-prebuilds-android-arm64-system-node:
+  en: 379e0ebf85eb5891
+  zh: c1e034f943d6fa31
+/termux-deployment-artifacts/documentation-checks:
+  en: cca68a7dc2c0b35b
+  zh: a376c0b09af69286
+/termux-deployment-artifacts/not-tracked-here:
+  en: 248dcecfe6248b1b
+  zh: fdb82d8d069539fc

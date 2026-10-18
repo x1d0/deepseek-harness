@@ -176,6 +176,19 @@ export async function collectCliHelp(
   return [...pages.values()]
 }
 
+/**
+ * 构造帮助探针的源码启动参数；Android 与 Termux 启动器使用相同的 internal 访问方式。
+ * @param args - 待查询的 CLI 子命令或 profile。
+ * @param platform - 执行 Node 的宿主平台。
+ * @returns 包含 --help 的 Node 参数，不继承调用方的额外启动选项。
+ */
+export function cliHelpNodeArgs(args: readonly string[], platform: NodeJS.Platform = process.platform): string[] {
+  return [
+    ...platform === 'android' ? ['--expose-internals'] : [],
+    '--import', 'tsx/esm', 'apps/cli/src/bin.ts', ...args, '--help',
+  ]
+}
+
 async function collectHelp(): Promise<HelpPage[]> {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-cli-help-'))
   const profiles = Object.keys(PROFILE_TEMPLATES)
@@ -191,9 +204,7 @@ async function collectHelp(): Promise<HelpPage[]> {
       NO_COLOR: '1',
     }
     for (const name of ['NODE_OPTIONS', 'FORCE_COLOR']) Reflect.deleteProperty(environment, name)
-    const help = execFileAsync(process.execPath, [
-      '--import', 'tsx/esm', 'apps/cli/src/bin.ts', ...args, '--help',
-    ], {
+    const help = execFileAsync(process.execPath, cliHelpNodeArgs(args), {
       cwd: root, env: environment, encoding: 'utf8', timeout: 30_000,
       killSignal: 'SIGKILL', maxBuffer: 2 * 1024 * 1024,
     })

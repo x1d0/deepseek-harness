@@ -49,7 +49,11 @@ export function findRepositoryReferences(
     if (organizationUrl.test(canonicalReferenceText(line).replace(kitRepositoryUrl, ''))) {
       references.push({ file, line: index + 1, kind: 'organization-url' })
     }
-    if ([...line.matchAll(commitCandidate)].some(match => commits.has(match[0].toLowerCase()))) {
+    // uv 的归档字节数不是 Git 引用；只排除未加引号的 size 数字，不跳过整行。
+    const referenceText = file.endsWith('/uv.lock') || file === 'uv.lock'
+      ? line.replace(/\bsize\s*=\s*\d+(?=\s*[,}])/g, 'size = <bytes>')
+      : line
+    if ([...referenceText.matchAll(commitCandidate)].some(match => commits.has(match[0].toLowerCase()))) {
       references.push({ file, line: index + 1, kind: 'commit-hash' })
     }
   }

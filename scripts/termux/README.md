@@ -46,6 +46,16 @@ clang -shared -fPIC native/system/packages/entry/src/flock.c \
   -I$PREFIX/include/node -o native/system/prebuilds/android-arm64/system.node
 ```
 
+## Documentation checks
+
+Run documentation checks with a larger Node heap and bounded concurrency on Termux:
+
+```bash
+CI=true NODE_OPTIONS=--max-old-space-size=4096 DSH_GATE_CONCURRENCY=2 pnpm run doc-sync
+```
+
+The CLI help generator adds `--expose-internals` to its Android child processes; other platforms keep their normal source launcher arguments. The repository-reference check ignores unquoted archive `size` integers in `uv.lock`, not references elsewhere on the same line.
+
 ## Not tracked here
 
 `~/.dsh/profiles/{sdk,web,headless}`, `~/.dsh/settings.yaml`, `~/.dsh/storages`,
